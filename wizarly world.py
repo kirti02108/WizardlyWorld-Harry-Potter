@@ -1,13 +1,24 @@
-import csv
 import curses
+import csv
+import os
 
-# File paths
 USER_FILE = 'users.csv'
 
+def get_visible_input(stdscr, y, x, prompt):
+    stdscr.addstr(y, x, prompt)
+    stdscr.refresh()
+    curses.echo()
+    curses.curs_set(1)
+    input_bytes = stdscr.getstr(y + 1, x, 50)
+    curses.noecho()
+    curses.curs_set(0)
+    return input_bytes.decode('utf-8').strip()
+
 def create_user_file():
-    with open(USER_FILE, 'w', newline='') as file:
-        writer = csv.writer(file)
-        writer.writerow(['id', 'username', 'email', 'password', 'house', 'wand', 'patronus'])
+    if not os.path.exists(USER_FILE):
+        with open(USER_FILE, 'w', newline='') as file:
+            writer = csv.writer(file)
+            writer.writerow(['id', 'username', 'email', 'password', 'house', 'wand', 'patronus'])
 
 def read_users():
     try:
@@ -18,10 +29,14 @@ def read_users():
         create_user_file()
         return []
 
+def get_next_id():
+    users = read_users()
+    return str(len(users) + 1)
+
 def write_user(user):
     with open(USER_FILE, 'a', newline='') as file:
-        writer = csv.writer(file)
-        writer.writerow(user.values())
+        writer = csv.DictWriter(file, fieldnames=['id', 'username', 'email', 'password', 'house', 'wand', 'patronus'])
+        writer.writerow(user)
 
 def find_user_by_username(username):
     users = read_users()
@@ -30,70 +45,78 @@ def find_user_by_username(username):
             return user
     return None
 
+def update_user_field(user, field, value):
+    users = read_users()
+    for u in users:
+        if u['username'] == user['username']:
+            u[field] = value
+            break
+    with open(USER_FILE, 'w', newline='') as file:
+        writer = csv.DictWriter(file, fieldnames=['id', 'username', 'email', 'password', 'house', 'wand', 'patronus'])
+        writer.writeheader()
+        writer.writerows(users)
+
 def display_home(stdscr):
-    stdscr.clear()
-    stdscr.addstr(0, 0, "Welcome to the Wizarding World")
-    stdscr.addstr(2, 0, "Explore the magic!")
-    stdscr.addstr(4, 0, "1. Register")
-    stdscr.addstr(5, 0, "2. Login")
+    while True:
+        stdscr.clear()
+        stdscr.addstr(0, 0, "Welcome to the Wizarding World")
+        stdscr.addstr(2, 0, "1. Register")
+        stdscr.addstr(3, 0, "2. Login")
+        stdscr.addstr(4, 0, "3. Exit")
+        stdscr.refresh()
 
-    key = stdscr.getch()
-
-    if key == ord('1'):
-        display_registration(stdscr)
-    elif key == ord('2'):
-        user = display_login(stdscr)
-        if user:
-            display_sorting_hat_quiz(stdscr)
-            display_wand_quiz(stdscr)
-            display_patronus_quiz(stdscr)
+        key = stdscr.getch()
+        if key == ord('1'):
+            display_registration(stdscr)
+        elif key == ord('2'):
+            user = display_login(stdscr)
+            if user:
+                display_sorting_hat_quiz(stdscr, user)
+                display_wand_quiz(stdscr, user)
+                display_patronus_quiz(stdscr, user)
+        elif key == ord('3'):
+            break
 
 def display_registration(stdscr):
     stdscr.clear()
-    stdscr.addstr(0, 0, "Register")
-    stdscr.addstr(2, 0, "Enter your information:")
+    stdscr.addstr(0, 0, "Register New Wizard")
+    username = get_visible_input(stdscr, 2, 0, "Username:")
+    email = get_visible_input(stdscr, 4, 0, "Email:")
+    password = get_visible_input(stdscr, 6, 0, "Password:")
 
-    stdscr.addstr(4, 0, "Username:")
-    username = stdscr.getstr(5, 0).decode('utf-8')
+    user_data = {
+        'id': get_next_id(),
+        'username': username,
+        'email': email,
+        'password': password,
+        'house': '',
+        'wand': '',
+        'patronus': ''
+    }
 
-    stdscr.addstr(6, 0, "Email:")
-    email = stdscr.getstr(7, 0).decode('utf-8')
-
-    stdscr.addstr(8, 0, "Password:")
-    password = stdscr.getstr(9, 0).decode('utf-8')
-
-    user_data = {'username': username, 'email': email, 'password': password, 'house': '', 'wand': '', 'patronus': ''}
     write_user(user_data)
-
-    stdscr.addstr(11, 0, "Registration successful. Press any key to return to the home screen.")
+    stdscr.addstr(8, 0, "Registration successful! Press any key to return.")
     stdscr.getch()
 
 def display_login(stdscr):
     stdscr.clear()
     stdscr.addstr(0, 0, "Login")
-    stdscr.addstr(2, 0, "Enter your login information:")
-
-    stdscr.addstr(4, 0, "Username:")
-    username = stdscr.getstr(5, 0).decode('utf-8')
+    username = get_visible_input(stdscr, 2, 0, "Username:")
+    password = get_visible_input(stdscr, 4, 0, "Password:")
 
     user = find_user_by_username(username)
-
-    if user:
-        stdscr.addstr(7, 0, "Login successful. Press any key to return to the home screen.")
+    if user and user['password'] == password:
+        stdscr.addstr(6, 0, "Login successful. Press any key to continue.")
+        stdscr.getch()
         return user
     else:
-        stdscr.addstr(7, 0, "User not found. Press any key to return to the home screen.")
+        stdscr.addstr(6, 0, "Invalid username or password. Press any key to retry.")
         stdscr.getch()
         return None
 
-# ... (previous code)
-
-# ... (previous code)
-
-def display_sorting_hat_quiz(stdscr):
+def display_sorting_hat_quiz(stdscr, user):
     stdscr.clear()
     stdscr.addstr(0, 0, "Sorting Hat Quiz")
-    stdscr.addstr(2, 0, "Answer the following questions:")
 
     sorting_questions = [
         "What is your preferred element?",
@@ -106,183 +129,83 @@ def display_sorting_hat_quiz(stdscr):
         "Which wizarding world profession interests you the most?"
     ]
 
-    sorting_answers = ["Gryffindor", "Slytherin", "Hufflepuff", "Ravenclaw"]
-    
-    user_sorting_answers = []
+    user_answers = []
+    for i, q in enumerate(sorting_questions):
+        answer = get_visible_input(stdscr, 2 + i * 2, 0, f"{q}")
+        user_answers.append(answer)
 
-    for i, question in enumerate(sorting_questions):
-        stdscr.addstr(4 + i * 3, 0, question)
-        
-        if i == 1 or i == 5:  # Display options only for the second and sixth questions
-            stdscr.addstr(5 + i * 3, 2, "Options:")
-            options = sorting_answers
-            for j, option in enumerate(options):
-                stdscr.addstr(6 + i * 3 + j, 4, f"{j + 1}. {option}")
-
-        stdscr.refresh()
-        answer = stdscr.getch() - ord('1')
-
-        if 0 <= answer < len(sorting_answers):
-            user_sorting_answers.append(sorting_answers[answer])
-
-    house_assignment = assign_house(user_sorting_answers)
-
-    stdscr.addstr(20, 0, f"You have been assigned to {house_assignment}. Press any key to return to the home screen.")
-    update_user_house(house_assignment)
+    house = assign_house(user_answers)
+    update_user_field(user, 'house', house)
+    stdscr.addstr(20, 0, f"You have been sorted into {house}! Press any key to continue.")
     stdscr.getch()
 
 def assign_house(answers):
-    gryffindor_score = answers.count('courage')
-    slytherin_score = answers.count('ambition')
-    hufflepuff_score = answers.count('loyalty')
-    ravenclaw_score = answers.count('knowledge')
-
-    scores = {
-        "Gryffindor": gryffindor_score,
-        "Slytherin": slytherin_score,
-        "Hufflepuff": hufflepuff_score,
-        "Ravenclaw": ravenclaw_score
+    traits = {
+        'gryffindor': ['bravery', 'courage', 'daring', 'fire'],
+        'slytherin': ['ambition', 'cunning', 'resourceful', 'water'],
+        'hufflepuff': ['loyalty', 'kindness', 'earth', 'friendship'],
+        'ravenclaw': ['intelligence', 'wisdom', 'air', 'creativity']
     }
 
-    assigned_house = max(scores, key=scores.get)
-    return assigned_house
+    scores = {'Gryffindor': 0, 'Slytherin': 0, 'Hufflepuff': 0, 'Ravenclaw': 0}
 
-def update_user_house(house):
-    users = read_users()
-    user = users[-1]  # Assuming the last user is the one who just registered
-    user['house'] = house
+    for ans in answers:
+        a = ans.lower()
+        for house, keywords in traits.items():
+            if any(k in a for k in keywords):
+                scores[house.capitalize()] += 1
 
-    with open(USER_FILE, 'w', newline='') as file:
-        writer = csv.writer(file)
-        writer.writerow(['id', 'username', 'email', 'password', 'house', 'wand', 'patronus'])
-        for user in users:
-            writer.writerow(user.values())
+    return max(scores, key=scores.get)
 
-def display_wand_quiz(stdscr):
+def display_wand_quiz(stdscr, user):
     stdscr.clear()
     stdscr.addstr(0, 0, "Wand Quiz")
-    stdscr.addstr(2, 0, "Answer the following questions:")
 
     wand_questions = [
-        "1. What is your favorite type of wood?",
-        "2. Choose a magical core for your wand:",
-        "3. What length do you prefer for your wand?"
+        "What is your favorite type of wood?",
+        "Choose a magical core for your wand:",
+        "What length do you prefer for your wand?"
     ]
 
-    wand_woods = ["Oak", "Holly", "Willow", "Mahogany"]
-    wand_cores = ["Phoenix feather", "Dragon heartstring", "Unicorn hair"]
-    wand_lengths = ["Short", "Average", "Long"]
+    answers = []
+    for i, q in enumerate(wand_questions):
+        answer = get_visible_input(stdscr, 2 + i * 2, 0, f"{q}")
+        answers.append(answer)
 
-    user_wand_answers = []
-
-    for i, question in enumerate(wand_questions):
-        stdscr.addstr(4 + i * 2, 0, question)
-        
-        if i == 0 or i == 1:  # Display options only for the first and second questions
-            stdscr.addstr(5 + i * 2, 0, "Options:")
-            if i == 0:
-                options = wand_woods
-            elif i == 1:
-                options = wand_cores
-            for j, option in enumerate(options):
-                stdscr.addstr(6 + i * 2 + j, 2, f"{j + 1}. {option}")
-
-        stdscr.refresh()
-        answer = stdscr.getch() - ord('1')
-
-        if 0 <= answer < len(options):
-            user_wand_answers.append(options[answer])
-
-    wand_details = assemble_wand(user_wand_answers)
-
-    stdscr.addstr(18, 0, f"Your wand has been crafted! Details: {wand_details}. Press any key to return to the home screen.")
-    update_user_wand(wand_details)
+    wand = f"{answers[0]} wood with a {answers[1]} core, {answers[2]} length"
+    update_user_field(user, 'wand', wand)
+    stdscr.addstr(10, 0, f"Your wand: {wand}. Press any key to continue.")
     stdscr.getch()
 
-# ... (previous code)
-
-def assemble_wand(answers):
-    if not answers:
-        return "Not enough information to assemble wand."
-
-    wood, core, length = answers
-    return f"Wood: {wood}, Core: {core}, Length: {length}"
-
-# ... (remaining code)
-
-def update_user_wand(wand_details):
-    users = read_users()
-    user = users[-1]  # Assuming the last user is the one who just registered
-    user['wand'] = wand_details
-
-    with open(USER_FILE, 'w', newline='') as file:
-        writer = csv.writer(file)
-        writer.writerow(['id', 'username', 'email', 'password', 'house', 'wand', 'patronus'])
-        for user in users:
-            writer.writerow(user.values())
-
-def display_patronus_quiz(stdscr):
+def display_patronus_quiz(stdscr, user):
     stdscr.clear()
     stdscr.addstr(0, 0, "Patronus Quiz")
-    stdscr.addstr(2, 0, "Answer the following questions:")
 
-    patronus_questions = [
-        "1. What is your favorite animal?",
-        "2. How would you describe your personality?",
-        "3. What element do you feel most connected to?",
-        "4. What is your happiest memory?"
+    questions = [
+        "What is your favorite animal?",
+        "How would you describe your personality?",
+        "What element do you feel most connected to?",
+        "What is your happiest memory?"
     ]
 
-    patronus_animals = ["Stag", "Dolphin", "Phoenix", "Wolf", "Owl", "Hare"]
-    
-    user_patronus_answers = []
+    answers = []
+    for i, q in enumerate(questions):
+        answer = get_visible_input(stdscr, 2 + i * 2, 0, f"{q}")
+        answers.append(answer)
 
-    for i, question in enumerate(patronus_questions):
-        stdscr.addstr(4 + i * 2, 0, question)
-        
-        if i == 0 or i == 2:  # Display options only for the first and third questions
-            stdscr.addstr(5 + i * 2, 0, "Options:")
-            if i == 0:
-                options = patronus_animals
-            elif i == 2:
-                options = ["Earth", "Air", "Fire", "Water"]
-            for j, option in enumerate(options):
-                stdscr.addstr(6 + i * 2 + j, 2, f"{j + 1}. {option}")
-
-        stdscr.refresh()
-        answer = stdscr.getch() - ord('1')
-
-        if 0 <= answer < len(options):
-            user_patronus_answers.append(options[answer])
-
-    patronus_assignment = determine_patronus(user_patronus_answers)
-
-    stdscr.addstr(18, 0, f"Your Patronus is revealed! It's a {patronus_assignment}. Press any key to return to the home screen.")
-    update_user_patronus(patronus_assignment)
+    patronus = determine_patronus(answers)
+    update_user_field(user, 'patronus', patronus)
+    stdscr.addstr(12, 0, f"Your Patronus is: {patronus}. Press any key to finish.")
     stdscr.getch()
 
 def determine_patronus(answers):
-    return answers[0]
-
-def update_user_patronus(patronus):
-    users = read_users()
-    user = users[-1]  # Assuming the last user is the one who just registered
-    user['patronus'] = patronus
-
-    with open(USER_FILE, 'w', newline='') as file:
-        writer = csv.writer(file)
-        writer.writerow(['id', 'username', 'email', 'password', 'house', 'wand', 'patronus'])
-        for user in users:
-            writer.writerow(user.values())
+    # Very basic logic: use first answer as the Patronus
+    return answers[0].title()
 
 def main(stdscr):
-    curses.curs_set(0)
-    stdscr.clear()
-    stdscr.refresh()
-
-    while True:
-        display_home(stdscr)
+    curses.curs_set(1)
+    create_user_file()
+    display_home(stdscr)
 
 if __name__ == '__main__':
-    create_user_file()
     curses.wrapper(main)
